@@ -1,0 +1,63 @@
+# ============================================================
+#  Smart Bank Enterprise Management System — .gitignore
+# ============================================================
+
+# ---- Compiled Java class files & build output ----
+build/
+*.class
+*.jar
+out/
+target/
+
+# ---- Sources manifest (generated at compile time) ----
+sources.txt
+
+# ---- Runtime generated data (not code) ----
+data/
+screenshots/
+
+# ---- Java package info ----
+*.iml
+
+# ---- IDE-specific folders ----
+.idea/
+.eclipse/
+.vscode/
+*.project
+*.classpath
+*.settings/
+nbproject/
+
+# ---- OS system files ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Temporary Microsoft Office lock files ----
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# ---- Python bytecode & virtual envs ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+
+# ---- Log files & audit output ----
+*.log
+audit_trail.log
+
+# ---- Database files (runtime data) ----
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ---- Binary snapshot backups (runtime data) ----
+*.dat

@@ -1,0 +1,26 @@
+# Normalize line endings to LF in the repository, check out as CRLF on Windows
+* text=auto eol=lf
+
+# Java source files — always LF
+*.java text eol=lf
+
+# Scripts — platform-specific line endings
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Markdown and config files — LF
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
+
+# Binary files — never modify
+*.jar binary
+*.class binary
+*.docx binary
+*.dat binary
+*.db binary
+*.png binary
+*.jpg binary
+*.gif binary
