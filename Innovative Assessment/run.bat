@@ -8,4 +8,4 @@ if not exist "build" (
     call build.bat
 )
 
-java -cp build com.smartbank.Main
+java -cp "build;lib/*" com.smartbank.Main

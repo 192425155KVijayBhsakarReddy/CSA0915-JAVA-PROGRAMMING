@@ -30,7 +30,7 @@ import java.util.List;
  * Interface for Dual Persistence Management:
  * 1. File Streams & Object Serialization (.dat)
  * 2. Tabular CSV Exports
- * 3. JDBC Database Sync & SQL Query Console
+ * 3. MySQL & SQLite JDBC Database Sync & SQL Query Console
  */
 public class DataStoragePanel extends JPanel {
     private final BankService bankService;
@@ -53,6 +53,7 @@ public class DataStoragePanel extends JPanel {
         setBorder(new EmptyBorder(15, 15, 15, 15));
 
         initComponents();
+        updateDbStatusLabel();
     }
 
     private void initComponents() {
@@ -133,10 +134,25 @@ public class DataStoragePanel extends JPanel {
         JPanel topDb = new JPanel(new BorderLayout(5, 5));
         topDb.setBackground(Color.WHITE);
 
-        lblDbStatus = new JLabel("Database Driver: " + (DBManager.isSqliteDriverAvailable() ? "SQLite JDBC Connected (data/smartbank.db)" : "Self-Contained Embedded Mode"));
+        JPanel statusRow = new JPanel(new BorderLayout());
+        statusRow.setBackground(Color.WHITE);
+
+        lblDbStatus = new JLabel("Database Driver: Checking...");
         lblDbStatus.setFont(UITheme.FONT_BODY_BOLD);
-        lblDbStatus.setForeground(DBManager.isSqliteDriverAvailable() ? UITheme.SUCCESS : UITheme.WARNING);
-        topDb.add(lblDbStatus, BorderLayout.NORTH);
+        statusRow.add(lblDbStatus, BorderLayout.WEST);
+
+        JButton btnConfigMySql = UITheme.createPrimaryButton("MySQL Settings / Connect");
+        btnConfigMySql.setFont(UITheme.FONT_SMALL);
+        statusRow.add(btnConfigMySql, BorderLayout.EAST);
+
+        btnConfigMySql.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showMySqlConfigDialog();
+            }
+        });
+
+        topDb.add(statusRow, BorderLayout.NORTH);
 
         txtQueryInput = new JTextArea(3, 20);
         txtQueryInput.setFont(UITheme.FONT_MONO);
@@ -146,7 +162,7 @@ public class DataStoragePanel extends JPanel {
 
         JPanel queryBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         queryBtns.setBackground(Color.WHITE);
-        JButton btnSyncAllToDb = UITheme.createPrimaryButton("Sync Memory -> JDBC DB");
+        JButton btnSyncAllToDb = UITheme.createPrimaryButton("Sync Memory -> Database");
         JButton btnExecuteSql = UITheme.createSuccessButton("Execute SQL Query");
         queryBtns.add(btnSyncAllToDb);
         queryBtns.add(btnExecuteSql);
@@ -177,6 +193,63 @@ public class DataStoragePanel extends JPanel {
         dbCard.add(scrollSql, BorderLayout.CENTER);
 
         add(dbCard, BorderLayout.CENTER);
+    }
+
+    private void updateDbStatusLabel() {
+        DBManager.DatabaseType type = bankService.getDbManager().getActiveDbType();
+        if (type == DBManager.DatabaseType.MYSQL) {
+            lblDbStatus.setText("Database: MySQL 8.0 Server (Connected: smartbank_db)");
+            lblDbStatus.setForeground(UITheme.SUCCESS);
+        } else if (type == DBManager.DatabaseType.SQLITE) {
+            lblDbStatus.setText("Database: SQLite Local Engine (data/smartbank.db)");
+            lblDbStatus.setForeground(UITheme.INFO);
+        } else {
+            lblDbStatus.setText("Database: In-Memory / Embedded Mode");
+            lblDbStatus.setForeground(UITheme.WARNING);
+        }
+    }
+
+    private void showMySqlConfigDialog() {
+        JPanel panel = new JPanel(new GridLayout(5, 2, 8, 8));
+        JTextField txtHost = new JTextField("localhost");
+        JTextField txtPort = new JTextField("3306");
+        JTextField txtDb = new JTextField("smartbank_db");
+        JTextField txtUser = new JTextField("root");
+        JPasswordField txtPass = new JPasswordField("");
+
+        panel.add(new JLabel("MySQL Host:"));
+        panel.add(txtHost);
+        panel.add(new JLabel("Port:"));
+        panel.add(txtPort);
+        panel.add(new JLabel("Database:"));
+        panel.add(txtDb);
+        panel.add(new JLabel("User:"));
+        panel.add(txtUser);
+        panel.add(new JLabel("Password:"));
+        panel.add(txtPass);
+
+        int res = JOptionPane.showConfirmDialog(this, panel, "MySQL Server Connection Setup", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (res == JOptionPane.OK_OPTION) {
+            try {
+                String host = txtHost.getText().trim();
+                int port = Integer.parseInt(txtPort.getText().trim());
+                String db = txtDb.getText().trim();
+                String user = txtUser.getText().trim();
+                String pass = new String(txtPass.getPassword());
+
+                bankService.getDbManager().configureMySql(host, port, db, user, pass);
+                updateDbStatusLabel();
+
+                if (bankService.getDbManager().getActiveDbType() == DBManager.DatabaseType.MYSQL) {
+                    JOptionPane.showMessageDialog(this, "Successfully connected to MySQL server!\nDatabase: " + db, "MySQL Connected", JOptionPane.INFORMATION_MESSAGE);
+                    handleSyncToDb();
+                } else {
+                    JOptionPane.showMessageDialog(this, "Could not connect to MySQL server. Please verify credentials/service.", "Connection Failed", JOptionPane.WARNING_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "MySQL Error: " + ex.getMessage(), "Connection Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void handleCreateBackup() {
@@ -236,10 +309,6 @@ public class DataStoragePanel extends JPanel {
     }
 
     private void handleSyncToDb() {
-        if (!DBManager.isSqliteDriverAvailable()) {
-            JOptionPane.showMessageDialog(this, "SQLite JDBC Driver is not loaded on classpath. DB Sync skipped.", "Notice", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
         try {
             DBManager db = bankService.getDbManager();
             for (Customer c : bankService.getAllCustomers()) db.saveCustomer(c);
@@ -247,24 +316,20 @@ public class DataStoragePanel extends JPanel {
             for (Transaction t : bankService.getAllTransactions()) db.saveTransaction(t);
             for (Loan l : loanService.getAllLoans()) db.saveLoan(l);
             for (Employee e : employeeService.getAllEmployees()) db.saveEmployee(e);
-            JOptionPane.showMessageDialog(this, "Synchronized all in-memory entities to SQLite Database!", "DB Sync", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Synchronized all in-memory entities to " + db.getActiveDbType().getLabel() + "!", "DB Sync", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "DB Sync Failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void handleExecuteSql() {
-        if (!DBManager.isSqliteDriverAvailable()) {
-            JOptionPane.showMessageDialog(this, "SQLite JDBC Driver is not loaded on classpath.", "Notice", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
         String sql = txtQueryInput.getText().trim();
         if (sql.isEmpty()) return;
 
         try (Connection conn = bankService.getDbManager().getConnection();
              Statement stmt = conn.createStatement()) {
 
-            if (sql.toLowerCase().startsWith("select")) {
+            if (sql.toLowerCase().startsWith("select") || sql.toLowerCase().startsWith("show") || sql.toLowerCase().startsWith("describe")) {
                 ResultSet rs = stmt.executeQuery(sql);
                 ResultSetMetaData meta = rs.getMetaData();
                 int colCount = meta.getColumnCount();
